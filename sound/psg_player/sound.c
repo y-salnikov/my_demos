@@ -1,5 +1,7 @@
 #include <SDL_mixer.h>
+#include "types.h"
 #include "sound.h"
+#include "ay.h"
 
 void sound_init(void)
 {
@@ -13,4 +15,9 @@ void sound_init(void)
 
 void sound_done(void)
 {
+}
+
+void sound_callback(void *udata, Uint8 *stream, int len)
+{
+	
 }
