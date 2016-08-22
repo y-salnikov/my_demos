@@ -1,4 +1,5 @@
 #include <SDL.h>
+#include "sound.h"
 
 int main(void)
 {
@@ -7,8 +8,9 @@ int main(void)
     { 
 	printf( "SDL could not initialize! SDL_Error: %s\n", SDL_GetError() ); 
     }
+    sound_init();
     
-    
+    sound_done();
  //Quit SDL subsystems 
     SDL_Quit();
     return 0;
