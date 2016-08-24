@@ -7,6 +7,7 @@ typedef struct ay_struct
 	uint16_t noise_counter;
 	uint16_t envelope_counter;
 	uint8_t envelope;
+	uint8_t envelope_state;
 	float 	tick_fraction;
 	float 	tps;			// ticks per sample
 } ay_context;
