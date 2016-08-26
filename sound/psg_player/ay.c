@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "types.h"
 
-#define CLK 1750000 // Hz
+#define CLK 1750000 // 1750000 Hz
 
 //            mixer matrix      A,     B,     C
 static const float LEFT[3]=  { 0.45, 0.50,   0.05 };
@@ -17,7 +17,7 @@ static const float RIGHT[3]= { 0.05, 0.50,   0.45 };
     0x0000, 0x0385, 0x053D, 0x0770,
     0x0AD7, 0x0FD5, 0x15B0, 0x230C,
     0x2B4C, 0x43C1, 0x5A4B, 0x732F,
-    0x9204, 0xAFF1, 0xD921, 0xFFFF
+    0x9204, 0xAFF1, 0xD921, 0xFFFE
   };
 
 ay_context* ay_init(int samplerate, void(*frame_callback)(void))
@@ -54,11 +54,11 @@ void ay_advance(ay_context *ayc)
 		ticks+=1;
 	}
 	
-	tc[0]=ayc->regs[0]|((ayc->regs[1]<<8) & 0x0F);
-	tc[1]=ayc->regs[2]|((ayc->regs[3]<<8) & 0x0F);
-	tc[2]=ayc->regs[4]|((ayc->regs[5]<<8) & 0x0F);
-	nc=ayc->regs[6] & 0x1F;
-	ec=(ayc->regs[13]|(ayc->regs[14]<<8))*16;
+	tc[0]=ayc->regs[00]|((ayc->regs[01] & 0x0f) <<8);
+	tc[1]=ayc->regs[02]|((ayc->regs[03] & 0x0f) <<8);
+	tc[2]=ayc->regs[04]|((ayc->regs[05] & 0x0f) <<8);
+	nc=ayc->regs[06];// & 0x1F;  // wtf?
+	ec=(ayc->regs[013]|(ayc->regs[014]<<8))*16;			//16?
 	
 //		tone generators	
 	for(i=0;i<3;i++)
@@ -152,19 +152,19 @@ void ay_advance(ay_context *ayc)
 		case 17: envelope=15; break;
 	}
 // 		mixer
-	ayc->a = ((ayc->regs[7] & 0x01) ? ayc->tone_wave[0] : 1) & ((ayc->regs[7] & 0x08) ? noise : 1);
-	ayc->b = ((ayc->regs[7] & 0x02) ? ayc->tone_wave[1] : 1) & ((ayc->regs[7] & 0x10) ? noise : 1);
-	ayc->c = ((ayc->regs[7] & 0x04) ? ayc->tone_wave[2] : 1) & ((ayc->regs[7] & 0x20) ? noise : 1);
+	ayc->a = ((ayc->regs[07] & 0x01) ? 1 : ayc->tone_wave[0] ) & ((ayc->regs[07] & 0x08) ? 1 : noise );
+	ayc->b = ((ayc->regs[07] & 0x02) ? 1 : ayc->tone_wave[1] ) & ((ayc->regs[07] & 0x10) ? 1 : noise );
+	ayc->c = ((ayc->regs[07] & 0x04) ? 1 : ayc->tone_wave[2] ) & ((ayc->regs[07] & 0x20) ? 1 : noise );
 
-	if (!((ayc->regs[7] & 0x01) | (ayc->regs[7] & 0x08))) ayc->a=0;
-	if (!((ayc->regs[7] & 0x02) | (ayc->regs[7] & 0x10))) ayc->b=0;
-	if (!((ayc->regs[7] & 0x04) | (ayc->regs[7] & 0x20))) ayc->c=0;
+	if (((ayc->regs[07] & 0x01) & (ayc->regs[07] & 0x08))) ayc->a=0;
+	if (((ayc->regs[07] & 0x02) & (ayc->regs[07] & 0x10))) ayc->b=0;
+	if (((ayc->regs[07] & 0x04) & (ayc->regs[07] & 0x20))) ayc->c=0;
 
-	ayc->a*= (ayc->regs[10] & 0x10) ? envelope : (ayc->regs[10] & 0x0f);
-	ayc->b*= (ayc->regs[11] & 0x10) ? envelope : (ayc->regs[11] & 0x0f);
-	ayc->c*= (ayc->regs[12] & 0x10) ? envelope : (ayc->regs[12] & 0x0f);
+	ayc->a*= (ayc->regs[010] & 0x10) ? envelope : (ayc->regs[010] & 0x0f);
+	ayc->b*= (ayc->regs[011] & 0x10) ? envelope : (ayc->regs[011] & 0x0f);
+	ayc->c*= (ayc->regs[012] & 0x10) ? envelope : (ayc->regs[012] & 0x0f);
 	
-	ayc->frame_counter+=ticks;
+	ayc->frame_counter+=1;
 	if(ayc->frame_counter>=ayc->tpf)
 	{
 		ayc->frame_counter-=ayc->tpf;
@@ -178,8 +178,8 @@ void ay_fill_samples(ay_context *ayc, int16_t *sound, uint32_t length) // length
 	for(i=0;i<length;i++)
 	{
 		ay_advance(ayc);
-		sound[i*2]  =    32768-((LEFT[0]*levels[ayc->a])+(LEFT[1]*levels[ayc->b])+(LEFT[2]*levels[ayc->c]));
-		sound[1+(i*2)] = 32768-((RIGHT[0]*levels[ayc->a])+(RIGHT[1]*levels[ayc->b])+(RIGHT[2]*levels[ayc->c]));
+		sound[i*2]  =    32767-((LEFT[0]*levels[ayc->a])+(LEFT[1]*levels[ayc->b])+(LEFT[2]*levels[ayc->c]));
+		sound[1+(i*2)] = 32767-((RIGHT[0]*levels[ayc->a])+(RIGHT[1]*levels[ayc->b])+(RIGHT[2]*levels[ayc->c]));
 	}
 	
 }
@@ -187,4 +187,20 @@ void ay_fill_samples(ay_context *ayc, int16_t *sound, uint32_t length) // length
 void ay_done(ay_context *ayc)
 {
 	free(ayc);
+}
+
+void ay_write(ay_context *ayc, uint8_t reg, uint8_t val)
+{
+	ayc->regs[reg]=val;
+	switch(reg)
+	{
+		case 00:
+		case 01: ayc->tone_counters[0]=0; break;
+		case 02:
+		case 03: ayc->tone_counters[1]=0; break;
+		case 04:
+		case 05: ayc->tone_counters[2]=0; break;
+		case 06: ayc->noise_counter=0;	 break;
+		case 015: ayc->envelope_state=val; break;
+	}
 }

@@ -16,3 +16,13 @@ typedef struct ay_struct
 	uint32_t tpf;
 	uint32_t frame_counter;
 } ay_context;
+
+typedef struct psg_struct
+{
+	uint8_t state;
+	uint8_t *data;
+	uint32_t size;
+	uint32_t pos;
+	uint16_t frame_counter;
+	void (*write_reg_cb)(uint8_t reg,uint8_t val);
+} psg_context;
