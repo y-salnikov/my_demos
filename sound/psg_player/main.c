@@ -34,7 +34,7 @@ int main(void)
 	pc=psg_init(write_ay_regs_callback);
 	ayc=ay_init(FREQ,frame_callback);
     sound_init(sound_callback);
-	psg_load(pc,"demo.psg");
+	psg_load(pc,"exolon.psg");
 	psg_play(pc);
 	while(pc->state)
 	{

@@ -15,6 +15,7 @@ typedef struct ay_struct
 	void (*fcb)(void);
 	uint32_t tpf;
 	uint32_t frame_counter;
+	uint32_t rng;
 } ay_context;
 
 typedef struct psg_struct

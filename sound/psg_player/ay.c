@@ -33,11 +33,12 @@ ay_context* ay_init(int samplerate, void(*frame_callback)(void))
 	ayc->envelope_state=0;
 	ayc->envelope_phase=0;
 	ayc->tick_fraction=0.0;
-	ayc->tps=(((float)CLK)/samplerate)/16.0;
+	ayc->tps=(1.0/samplerate)/(8.0/CLK);
 	ayc->fcb=frame_callback;
 	ayc->frame_counter=0;
-	ayc->tpf=samplerate*(1.0/50.0); 		// 50Hz / frame
+	ayc->tpf=(1.0/50.0)/(1.0/samplerate); 		// 50Hz / frame
 	ayc->a=ayc->b=ayc->c=0;
+	ayc->rng=1;
 	return ayc;
 }
 
@@ -57,7 +58,7 @@ void ay_advance(ay_context *ayc)
 	tc[0]=ayc->regs[00]|((ayc->regs[01] & 0x0f) <<8);
 	tc[1]=ayc->regs[02]|((ayc->regs[03] & 0x0f) <<8);
 	tc[2]=ayc->regs[04]|((ayc->regs[05] & 0x0f) <<8);
-	nc=ayc->regs[06];// & 0x1F;  // wtf?
+	nc=ayc->regs[06] & 0x1F;  
 	ec=(ayc->regs[013]|(ayc->regs[014]<<8))*16;			//16?
 	
 //		tone generators	
@@ -80,22 +81,16 @@ void ay_advance(ay_context *ayc)
 		}
 	}
 //		noise generator
-	if((ticks>nc) && (nc>0))
-	{
-		fprintf(stderr,"Noise tone pitch is too high\n");
-		ayc->noise_mod=1-ayc->noise_mod;
-		ayc->noise_counter=0;
-	}
-	else
-	{
 		ayc->noise_counter+=ticks;
-		if(ayc->noise_counter>=nc)
+		while(ayc->noise_counter>=nc)
 		{
 			ayc->noise_counter-=nc;
-			ayc->noise_mod=1-ayc->noise_mod;
+			ayc->rng=rand();
+//			if( ( ayc->rng & 1 ) ^ ( ( ayc->rng & 2 ) ? 1 : 0 ) )
+			if(ayc->rng & 0x01)
+				noise=1-noise;
+			if(nc==0) break;
 		}
-	}
-	noise=ayc->noise_mod*(rand() & 0x01);
 
 // 		envelope generator
 	ayc->envelope_counter+=ticks;
@@ -175,11 +170,14 @@ void ay_advance(ay_context *ayc)
 void ay_fill_samples(ay_context *ayc, int16_t *sound, uint32_t length) // length in samples = bytes/4
 {
 	uint32_t i;
+	int16_t l,r;
 	for(i=0;i<length;i++)
 	{
 		ay_advance(ayc);
-		sound[i*2]  =    32767-((LEFT[0]*levels[ayc->a])+(LEFT[1]*levels[ayc->b])+(LEFT[2]*levels[ayc->c]));
-		sound[1+(i*2)] = 32767-((RIGHT[0]*levels[ayc->a])+(RIGHT[1]*levels[ayc->b])+(RIGHT[2]*levels[ayc->c]));
+		l=32767-((LEFT[0]*levels[ayc->a])+(LEFT[1]*levels[ayc->b])+(LEFT[2]*levels[ayc->c]));
+		r=32767-((RIGHT[0]*levels[ayc->a])+(RIGHT[1]*levels[ayc->b])+(RIGHT[2]*levels[ayc->c]));
+		sound[i*2]  =    l;
+		sound[1+(i*2)] = r;
 	}
 	
 }
@@ -201,6 +199,8 @@ void ay_write(ay_context *ayc, uint8_t reg, uint8_t val)
 		case 04:
 		case 05: ayc->tone_counters[2]=0; break;
 		case 06: ayc->noise_counter=0;	 break;
-		case 015: ayc->envelope_state=val; break;
+		case 015: ayc->envelope_state=val;
+				  ayc->envelope_phase=0;
+				  ayc->envelope_counter=0; break;
 	}
 }
